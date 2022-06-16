@@ -1,5 +1,5 @@
 {
-  "name": "everytime-cleaner",
+  "name": "eclass-crawler",
   "scripts": {
     "start": "ts-node ./src/index.ts"
   },
