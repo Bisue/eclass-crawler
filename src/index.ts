@@ -1,11 +1,8 @@
 import puppeteer from "puppeteer";
 import dotenv from "dotenv";
+import log from "./log";
 
 dotenv.config();
-
-function log(...args: any[]) {
-  console.log.apply(null, ["[LOG] ", ...args]);
-}
 
 (async () => {
   log("Start puppeteer...");
