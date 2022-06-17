@@ -1,6 +1,6 @@
 import puppeteer from "puppeteer";
 import dotenv from "dotenv";
-import log from "./log";
+import { log } from "./log";
 
 dotenv.config();
 
