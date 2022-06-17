@@ -31,7 +31,7 @@ class Crawler {
   page: puppeteer.Page | null = null;
 
   async init() {
-    this.browser = await puppeteer.launch();
+    this.browser = await puppeteer.launch({ headless: false });
     this.page = await this.browser.newPage();
 
     log("Crawler prepared.");
@@ -180,6 +180,81 @@ class Crawler {
     return notices;
   }
 
+  async getReferences(subjectId: string) {
+    if (!this.browser || !this.page) {
+      this.abort("Call init() first!");
+      throw null;
+    }
+
+    log("Getting references for ", subjectId);
+
+    const homeUrl = `https://eclass.dongguk.edu/Course.do?cmd=viewStudyHome&boardInfoDTO.boardInfoGubun=study_home&courseDTO.courseId=${subjectId}`;
+
+    await this.page.goto(homeUrl);
+
+    let referenceUrl = await this.page.$eval(
+      ".menuSub.mp1 li:nth-child(3) a",
+      (e) => e.getAttribute("href")
+    );
+    if (!referenceUrl) throw null;
+
+    await this.page.goto(`https://eclass.dongguk.edu${referenceUrl}`);
+    referenceUrl = this.page.url();
+
+    let page = 1;
+    const references: Notice[] = [];
+    while (true) {
+      log("- current page: ", page);
+
+      const curReferenceUrl = `${referenceUrl}&curPage=${page}`;
+      await this.page.goto(curReferenceUrl);
+
+      const referencesEls = await this.page.$$("table.boardListBasic tbody>tr");
+      const notFound = (
+        await referencesEls[0].evaluate((e) => e.textContent)
+      )?.includes("없습니다");
+      if (notFound) break;
+
+      for (const referenceEl of referencesEls) {
+        const no = await referenceEl.$eval("td:nth-child(1)", (e) =>
+          e.textContent?.trim()
+        );
+        const title = await referenceEl.$eval("td:nth-child(2)", (e) =>
+          e.textContent?.trim()
+        );
+        const files = -1;
+        const author = await referenceEl.$eval("td:nth-child(4)", (e) =>
+          e.textContent?.trim()
+        );
+        const date = await referenceEl.$eval("td:nth-child(5)", (e) =>
+          e.textContent?.trim()
+        );
+
+        if (
+          no != null &&
+          title != null &&
+          files != null &&
+          author != null &&
+          date != null
+        ) {
+          references.push({
+            no: Number.parseInt(no),
+            title,
+            author,
+            files,
+            date,
+          });
+        }
+      }
+
+      page++;
+    }
+
+    log("Got references.");
+
+    return references;
+  }
+
   async crawl(id: string, pw: string) {
     log("Start eclass crawler...");
 
@@ -196,7 +271,7 @@ class Crawler {
       const subjectId = subjects[subject];
       data[subject] = {
         notices: await this.getNotices(subjectId),
-        references: [],
+        references: await this.getReferences(subjectId),
       };
     }
 
