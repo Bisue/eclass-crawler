@@ -1,5 +1,5 @@
-import puppeteer, { Touchscreen } from "puppeteer";
-import { log, error } from "@src/log";
+import puppeteer from "puppeteer";
+import { log, error } from "@src/utilities/log";
 
 type Notice = {
   no: number;
