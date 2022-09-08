@@ -1,7 +1,6 @@
 import config from "./config";
 import Crawler from "./crawler";
-import { log } from "./log";
-import fs from "fs";
+import { save } from "./utilities";
 
 (async () => {
   const crawler = new Crawler();
@@ -9,11 +8,7 @@ import fs from "fs";
 
   const data = await crawler.crawl(config.id, config.pw);
 
-  const json = JSON.stringify(data, undefined, 4);
-  const path = "./output.json";
-  fs.writeFileSync(path, json);
-
-  log(`Data saved at '${path}'`);
+  save(data);
 
   await crawler.close();
 })();
