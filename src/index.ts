@@ -1,6 +1,6 @@
-import config from "./config";
-import Crawler from "./crawler";
-import { save } from "./utilities";
+import config from "@src/config";
+import Crawler from "@src/crawler";
+import { save } from "@src/utilities";
 
 (async () => {
   const crawler = new Crawler();

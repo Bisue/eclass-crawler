@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import dayjs from "dayjs";
-import { log, error } from "./log";
+import { log, error } from "@src/log";
 
 /**
  * `./output/${timestamp}.json`에 JSON으로 변환 후 저장
