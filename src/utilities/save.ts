@@ -14,7 +14,7 @@ export const save = (data: CrawledData[]) => {
   // 가장 마지막 데이터
   const files = fs.readdirSync(dir).filter(f => f.endsWith('.json'));
   if (files.length > 0) {
-    const latestFilename = files.at(-1)!;
+    const latestFilename = files.sort().at(-1)!;
     const latestFilepath = path.join(dir, latestFilename);
 
     // [TODO: 딥하게 비교 제대로 해서 과목명/카테고리/제목 알림]
