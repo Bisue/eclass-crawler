@@ -140,7 +140,6 @@ export class EclassCrawler {
   private async crawlNotices({ id, name }: Course): Promise<Notice[]> {
     let page: puppeteer.Page | null = null;
     try {
-      log('start notices!');
       page = await this.makeNewPage(`https://eclass.dongguk.edu/Course.do?cmd=viewStudyHome&boardInfoDTO.boardInfoGubun=study_home&courseDTO.courseId=${id}`);
       // 공지사항 게시판 페이지 url 크롤링 (이클래스 url 생성 방식이 조금 이상)
       const basePath = (await page.$eval('.menuSub.mp2 a:first-child', e => e.getAttribute('href')))!;
@@ -148,7 +147,7 @@ export class EclassCrawler {
       const notices: Notice[] = [];
       for (let curPage: number = 1; ; curPage++) {
         const curUrl = `https://eclass.dongguk.edu${basePath}&curPage=${curPage}`;
-        log(`${name}(notices): curPage = ${curPage}`);
+        log(`(notices) ${name}: curPage = ${curPage}`);
         await page.goto(curUrl, { waitUntil: 'domcontentloaded' });
 
         const noticeElements = await page.$$('table.boardListBasic tbody>tr');
@@ -180,14 +179,13 @@ export class EclassCrawler {
   private async crawlAssignments({ id, name }: Course): Promise<Assignment[]> {
     let page: puppeteer.Page | null = null;
     try {
-      log('start assignments!');
       page = await this.makeNewPage(`https://eclass.dongguk.edu/Course.do?cmd=viewStudyHome&boardInfoDTO.boardInfoGubun=study_home&courseDTO.courseId=${id}`);
       // 과제 게시판 페이지 url 크롤링 (이클래스 url 생성 방식이 조금 이상)
       const basePath = (await page.$eval('.menuSub.mp4 li:nth-child(2) a', e => e.getAttribute('href')))!;
 
       const assignments: Assignment[] = [];
 
-      log(`${name}(assignment): crawling...`);
+      log(`(assignment) ${name}: crawling...`);
       await page.goto(`https://eclass.dongguk.edu${basePath}`, { waitUntil: 'domcontentloaded' });
 
       const assignmentElements = await page.$$('.listContent.pb20');
@@ -215,7 +213,6 @@ export class EclassCrawler {
   private async crawlResources({ id, name }: Course): Promise<Resource[]> {
     let page: puppeteer.Page | null = null;
     try {
-      log('start resources!');
       page = await this.makeNewPage(`https://eclass.dongguk.edu/Course.do?cmd=viewStudyHome&boardInfoDTO.boardInfoGubun=study_home&courseDTO.courseId=${id}`);
       // 자료실 게시판 페이지 url 크롤링 (이클래스 url 생성 방식이 조금 이상)
       const tempPath = (await page.$eval('.menuSub.mp1 li:nth-child(3) a', e => e.getAttribute('href')))!;
@@ -225,7 +222,7 @@ export class EclassCrawler {
       const resources: Resource[] = [];
       for (let curPage: number = 1; ; curPage++) {
         const curUrl = `${basePath}&curPage=${curPage}`;
-        log(`${name}(resources): curPage = ${curPage}`);
+        log(`(resources) ${name}: curPage = ${curPage}`);
         await page.goto(curUrl, { waitUntil: 'domcontentloaded' });
 
         const resourceElements = await page.$$('table.boardListBasic tbody>tr');
@@ -260,7 +257,10 @@ export class EclassCrawler {
     if (!this.loggedIn) throw Error('로그인 실패!');
 
     const courses = await this.crawlCourses();
-    log('crawled courses: ', courses);
+    log(
+      'my courses: ',
+      courses.map(c => c.name)
+    );
     const crawledData: CrawledData[] = await Promise.all(
       courses.map(async course => ({
         course: course.name,
