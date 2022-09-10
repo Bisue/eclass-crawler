@@ -24,7 +24,7 @@ export interface Notice {
   no: string;
   title: string;
   author: string;
-  created: Date;
+  created: string;
 }
 
 /**
@@ -32,7 +32,7 @@ export interface Notice {
  */
 export interface Assignment {
   title: string;
-  deadline: Date;
+  deadline: string;
   finished: boolean;
 }
 
@@ -43,7 +43,7 @@ export interface Resource {
   no: string;
   title: string;
   author: string;
-  created: Date;
+  created: string;
 }
 
 /**
@@ -159,7 +159,7 @@ export class EclassCrawler {
           const author = await noticeElement.$eval('td:nth-child(4)', e => e.textContent!.trim());
           const created = await noticeElement.$eval('td:nth-child(5)', e => e.textContent!.trim());
 
-          notices.push({ no, title, author, created: new Date(created) });
+          notices.push({ no, title, author, created });
         }
       }
 
@@ -194,7 +194,7 @@ export class EclassCrawler {
         const deadline = (await assignmentElement.$eval('.boardListInfo tbody td:first-child', el => el.textContent!)).split('~')[1].trim();
         const finished = (await assignmentElement.$eval('.boardListInfo tbody td:nth-child(4)', el => el.textContent!)).includes('제출완료');
 
-        assignments.push({ title, finished, deadline: new Date(deadline) });
+        assignments.push({ title, finished, deadline });
       }
 
       return assignments;
@@ -235,7 +235,7 @@ export class EclassCrawler {
           const author = await referenceEl.$eval('td:nth-child(4)', e => e.textContent!.trim());
           const created = await referenceEl.$eval('td:nth-child(5)', e => e.textContent!.trim());
 
-          resources.push({ no, title, author, created: new Date(created) });
+          resources.push({ no, title, author, created });
         }
       }
 
