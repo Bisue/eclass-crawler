@@ -147,7 +147,7 @@ export class EclassCrawler {
       const notices: Notice[] = [];
       for (let curPage: number = 1; ; curPage++) {
         const curUrl = `https://eclass.dongguk.edu${basePath}&curPage=${curPage}`;
-        log(`(notices) ${name}: curPage = ${curPage}`);
+        log(`(notices-${curPage}p) ${name}`);
         await page.goto(curUrl, { waitUntil: 'domcontentloaded' });
 
         const noticeElements = await page.$$('table.boardListBasic tbody>tr');
@@ -185,7 +185,7 @@ export class EclassCrawler {
 
       const assignments: Assignment[] = [];
 
-      log(`(assignment) ${name}: crawling...`);
+      log(`(assignment) ${name}`);
       await page.goto(`https://eclass.dongguk.edu${basePath}`, { waitUntil: 'domcontentloaded' });
 
       const assignmentElements = await page.$$('.listContent.pb20');
@@ -222,7 +222,7 @@ export class EclassCrawler {
       const resources: Resource[] = [];
       for (let curPage: number = 1; ; curPage++) {
         const curUrl = `${basePath}&curPage=${curPage}`;
-        log(`(resources) ${name}: curPage = ${curPage}`);
+        log(`(resources-${curPage}p) ${name}`);
         await page.goto(curUrl, { waitUntil: 'domcontentloaded' });
 
         const resourceElements = await page.$$('table.boardListBasic tbody>tr');
