@@ -1,8 +1,10 @@
-import dotenv from "dotenv";
+import dotenv from 'dotenv';
 
 dotenv.config();
 
-const id = process.env.STD_ID ?? "";
-const pw = process.env.STD_PW ?? "";
+// 학번
+const id = process.env.STD_ID ?? '';
+// 비밀번호
+const pw = process.env.STD_PW ?? '';
 
 export default { id, pw };

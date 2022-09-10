@@ -1,284 +1,279 @@
-import puppeteer from "puppeteer";
-import { log, error } from "@src/utilities/log";
+import puppeteer from 'puppeteer';
+import { log, error } from '@src/utilities/log';
 
-type Notice = {
-  no: number;
-  title: string;
-  author: string;
-  files: number;
-  date: string;
-};
-
-type Reference = {
-  no: number;
-  title: string;
-  author: string;
-  files: number;
-  date: string;
-};
-
-type SubjectData = {
-  notices: Notice[];
-  references: Reference[];
-};
-
-type CrawlData = {
-  [subject: string]: SubjectData;
-};
-
-class Crawler {
-  browser: puppeteer.Browser | null = null;
-  page: puppeteer.Page | null = null;
-
-  async init() {
-    this.browser = await puppeteer.launch({ headless: false });
-    this.page = await this.browser.newPage();
-
-    log("Crawler prepared.");
-  }
-
-  async close() {
-    if (!this.browser || !this.page) {
-      this.abort("Call init() first!");
-      return;
-    }
-
-    await this.browser.close();
-
-    this.browser = null;
-    this.page = null;
-  }
-
-  async abort(message: string) {
-    error(message);
-    process.exit();
-  }
-
-  async login(id: string, pw: string) {
-    if (!this.browser || !this.page) {
-      this.abort("Call init() first!");
-      return;
-    }
-
-    log("Logging in...");
-
-    this.page.goto("https://eclass.dongguk.edu/Main.do?cmd=viewHome");
-    await this.page.waitForNavigation();
-
-    await this.page.click(".total_login a");
-    await this.page.type('input[name="userDTO.userId"]', id);
-    await this.page.type('input[name="userDTO.password"]', pw);
-    await this.page.click(".loginBtn");
-    await this.page.waitForNavigation();
-
-    log("Logged in.");
-  }
-
-  async getSubjects() {
-    if (!this.browser || !this.page) {
-      this.abort("Call init() first!");
-      return;
-    }
-
-    log("Getting subjects...");
-
-    await this.page.goto("https://eclass.dongguk.edu/Main.do?cmd=viewHome");
-
-    const container = await this.page.$("#mCSB_1_container");
-    if (!container) {
-      this.abort("Subject containers not found!");
-      return;
-    }
-
-    const subjectEls = await container.$$("li");
-    const subjects: { [index: string]: string } = {};
-    for (const subjectEl of subjectEls) {
-      const titleEl = await subjectEl.$(".boardTxt");
-      const buttonEl = await subjectEl.$(".boardBtn button");
-
-      const title = await titleEl?.evaluate((e) => e.innerHTML.trim());
-      const id = await buttonEl?.evaluate((e) => {
-        const onclick = e.getAttribute("onclick");
-        const matches = onclick?.match(/viewCourse\('([^']*)'\)/);
-        if (!matches) return null;
-
-        return matches[1].split(",")[0];
-      });
-
-      if (title && id) subjects[title] = id;
-    }
-
-    log("Got subjects.");
-
-    return subjects;
-  }
-
-  async getNotices(subjectId: string) {
-    if (!this.browser || !this.page) {
-      this.abort("Call init() first!");
-      throw null;
-    }
-
-    log("Getting notices for ", subjectId);
-
-    const homeUrl = `https://eclass.dongguk.edu/Course.do?cmd=viewStudyHome&boardInfoDTO.boardInfoGubun=study_home&courseDTO.courseId=${subjectId}`;
-
-    await this.page.goto(homeUrl);
-
-    const noticeUrl = await this.page.$eval(".menuSub.mp2 a:first-child", (e) =>
-      e.getAttribute("href")
-    );
-    if (!noticeUrl) throw null;
-
-    let page = 1;
-    const notices: Notice[] = [];
-    while (true) {
-      log("- current page: ", page);
-
-      const curNoticeUrl = `https://eclass.dongguk.edu${noticeUrl}&curPage=${page}`;
-      await this.page.goto(curNoticeUrl);
-
-      const noticeEls = await this.page.$$("table.boardListBasic tbody>tr");
-      if (noticeEls.length == 0) break;
-      for (const noticeEl of noticeEls) {
-        const no = await noticeEl.$eval("td:nth-child(1)", (e) =>
-          e.textContent?.trim()
-        );
-        const title = await noticeEl.$eval("td:nth-child(2)", (e) =>
-          e.textContent?.trim()
-        );
-        const files = -1;
-        const author = await noticeEl.$eval("td:nth-child(4)", (e) =>
-          e.textContent?.trim()
-        );
-        const date = await noticeEl.$eval("td:nth-child(5)", (e) =>
-          e.textContent?.trim()
-        );
-
-        if (
-          no != null &&
-          title != null &&
-          files != null &&
-          author != null &&
-          date != null
-        ) {
-          notices.push({
-            no: Number.parseInt(no),
-            title,
-            author,
-            files,
-            date,
-          });
-        }
-      }
-
-      page++;
-    }
-
-    log("Got notices.");
-
-    return notices;
-  }
-
-  async getReferences(subjectId: string) {
-    if (!this.browser || !this.page) {
-      this.abort("Call init() first!");
-      throw null;
-    }
-
-    log("Getting references for ", subjectId);
-
-    const homeUrl = `https://eclass.dongguk.edu/Course.do?cmd=viewStudyHome&boardInfoDTO.boardInfoGubun=study_home&courseDTO.courseId=${subjectId}`;
-
-    await this.page.goto(homeUrl);
-
-    let referenceUrl = await this.page.$eval(
-      ".menuSub.mp1 li:nth-child(3) a",
-      (e) => e.getAttribute("href")
-    );
-    if (!referenceUrl) throw null;
-
-    await this.page.goto(`https://eclass.dongguk.edu${referenceUrl}`);
-    referenceUrl = this.page.url();
-
-    let page = 1;
-    const references: Notice[] = [];
-    while (true) {
-      log("- current page: ", page);
-
-      const curReferenceUrl = `${referenceUrl}&curPage=${page}`;
-      await this.page.goto(curReferenceUrl);
-
-      const referencesEls = await this.page.$$("table.boardListBasic tbody>tr");
-      const notFound = (
-        await referencesEls[0].evaluate((e) => e.textContent)
-      )?.includes("없습니다");
-      if (notFound) break;
-
-      for (const referenceEl of referencesEls) {
-        const no = await referenceEl.$eval("td:nth-child(1)", (e) =>
-          e.textContent?.trim()
-        );
-        const title = await referenceEl.$eval("td:nth-child(2)", (e) =>
-          e.textContent?.trim()
-        );
-        const files = -1;
-        const author = await referenceEl.$eval("td:nth-child(4)", (e) =>
-          e.textContent?.trim()
-        );
-        const date = await referenceEl.$eval("td:nth-child(5)", (e) =>
-          e.textContent?.trim()
-        );
-
-        if (
-          no != null &&
-          title != null &&
-          files != null &&
-          author != null &&
-          date != null
-        ) {
-          references.push({
-            no: Number.parseInt(no),
-            title,
-            author,
-            files,
-            date,
-          });
-        }
-      }
-
-      page++;
-    }
-
-    log("Got references.");
-
-    return references;
-  }
-
-  async crawl(id: string, pw: string) {
-    log("Start eclass crawler...");
-
-    await this.login(id, pw);
-
-    const subjects = await this.getSubjects();
-    if (!subjects) {
-      this.abort("No subjects!");
-      return;
-    }
-
-    const data: CrawlData = {};
-    for (const subject in subjects) {
-      const subjectId = subjects[subject];
-      data[subject] = {
-        notices: await this.getNotices(subjectId),
-        references: await this.getReferences(subjectId),
-      };
-    }
-
-    log("Finish!");
-
-    return data;
-  }
+/**
+ * 사용자 로그인 정보
+ */
+export interface UserCredential {
+  id: string;
+  password: string;
 }
 
-export default Crawler;
+/**
+ * 과목
+ */
+export interface Course {
+  id: string;
+  name: string;
+}
+
+/**
+ * 공지사항
+ */
+export interface Notice {
+  no: string;
+  title: string;
+  author: string;
+  created: Date;
+}
+
+/**
+ * 과제
+ */
+export interface Assignment {
+  title: string;
+  deadline: Date;
+  finished: boolean;
+}
+
+/**
+ * 자료실
+ */
+export interface Resource {
+  no: string;
+  title: string;
+  author: string;
+  created: Date;
+}
+
+/**
+ * 크롤링 결과
+ */
+export type CrawledData = {
+  course: string;
+  notices: Notice[];
+  assignments: Assignment[];
+  resources: Resource[];
+};
+
+/**
+ * 이클래스 크롤러
+ */
+export class EclassCrawler {
+  browser: puppeteer.Browser;
+  loggedIn: boolean = false;
+
+  constructor(browser: puppeteer.Browser) {
+    this.browser = browser;
+  }
+
+  /**
+   * 주어진 url을 표시하는 새로운 페이지를 생성
+   */
+  private async makeNewPage(url: string): Promise<puppeteer.Page> {
+    const page = await this.browser.newPage();
+    await page.goto(url, { waitUntil: 'domcontentloaded' });
+
+    return page;
+  }
+
+  /**
+   * 주어진 credential로 로그인
+   */
+  private async login({ id, password }: UserCredential): Promise<boolean> {
+    let page: puppeteer.Page | null = null;
+    try {
+      page = await this.makeNewPage('https://eclass.dongguk.edu/Main.do?cmd=viewHome');
+
+      // 로그인 폼 전송
+      await page.click('.total_login a');
+      await page.type('input[name="userDTO.userId"]', id);
+      await page.type('input[name="userDTO.password"]', password);
+      await page.click('.loginBtn');
+
+      await page.waitForNavigation();
+
+      return true;
+    } catch (e) {
+      error('로그인 중 오류가 발생했습니다!');
+
+      return false;
+    } finally {
+      await page?.close();
+    }
+  }
+
+  /**
+   * 수강중인 강의 목록 크롤링
+   */
+  private async crawlCourses(): Promise<Course[]> {
+    let page: puppeteer.Page | null = null;
+    try {
+      page = await this.makeNewPage(`https://eclass.dongguk.edu/Main.do?cmd=viewHome`);
+
+      // 수강중인 강의 목록 (첫 element는 헤딩)
+      const courseElements = (await page.$$('select[name="courseDTO.courseId"] > option')).slice(1);
+      const courses: Course[] = await Promise.all(
+        courseElements.map(el =>
+          el.evaluate(e => {
+            return {
+              id: e.getAttribute('value')!.split(',')[0],
+              name: e.textContent!.trim(),
+            };
+          })
+        )
+      );
+
+      return courses;
+    } catch (e) {
+      error('과목 크롤링 중 오류가 발생했습니다!');
+
+      throw e;
+    } finally {
+      await page?.close();
+    }
+  }
+
+  /**
+   * 주어진 과목의 공지사항 크롤링
+   */
+  private async crawlNotices({ id, name }: Course): Promise<Notice[]> {
+    let page: puppeteer.Page | null = null;
+    try {
+      log('start notices!');
+      page = await this.makeNewPage(`https://eclass.dongguk.edu/Course.do?cmd=viewStudyHome&boardInfoDTO.boardInfoGubun=study_home&courseDTO.courseId=${id}`);
+      // 공지사항 게시판 페이지 url 크롤링 (이클래스 url 생성 방식이 조금 이상)
+      const basePath = (await page.$eval('.menuSub.mp2 a:first-child', e => e.getAttribute('href')))!;
+
+      const notices: Notice[] = [];
+      for (let curPage: number = 1; ; curPage++) {
+        const curUrl = `https://eclass.dongguk.edu${basePath}&curPage=${curPage}`;
+        log(`${name}(notices): curPage = ${curPage}`);
+        await page.goto(curUrl, { waitUntil: 'domcontentloaded' });
+
+        const noticeElements = await page.$$('table.boardListBasic tbody>tr');
+        if (noticeElements.length === 0) break;
+
+        for (const noticeElement of noticeElements) {
+          const no = await noticeElement.$eval('td:nth-child(1)', e => e.textContent!.trim());
+          const title = await noticeElement.$eval('td:nth-child(2)', e => e.textContent!.trim());
+          const author = await noticeElement.$eval('td:nth-child(4)', e => e.textContent!.trim());
+          const created = await noticeElement.$eval('td:nth-child(5)', e => e.textContent!.trim());
+
+          notices.push({ no, title, author, created: new Date(created) });
+        }
+      }
+
+      return notices;
+    } catch (e) {
+      error(`${name}: 공지사항 크롤링 중 오류가 발생했습니다!`);
+
+      throw e;
+    } finally {
+      await page?.close();
+    }
+  }
+
+  /**
+   * 주어진 과목의 과제 크롤링
+   */
+  private async crawlAssignments({ id, name }: Course): Promise<Assignment[]> {
+    let page: puppeteer.Page | null = null;
+    try {
+      log('start assignments!');
+      page = await this.makeNewPage(`https://eclass.dongguk.edu/Course.do?cmd=viewStudyHome&boardInfoDTO.boardInfoGubun=study_home&courseDTO.courseId=${id}`);
+      // 과제 게시판 페이지 url 크롤링 (이클래스 url 생성 방식이 조금 이상)
+      const basePath = (await page.$eval('.menuSub.mp4 li:nth-child(2) a', e => e.getAttribute('href')))!;
+
+      const assignments: Assignment[] = [];
+
+      log(`${name}(assignment): crawling...`);
+      await page.goto(`https://eclass.dongguk.edu${basePath}`, { waitUntil: 'domcontentloaded' });
+
+      const assignmentElements = await page.$$('.listContent.pb20');
+      for (const assignmentElement of assignmentElements) {
+        const title = (await assignmentElement.$eval('.listContent.pb20 dt h4', el => el.childNodes[2].textContent!)).trim();
+        const deadline = (await assignmentElement.$eval('.boardListInfo tbody td:first-child', el => el.textContent!)).split('~')[1].trim();
+        const finished = (await assignmentElement.$eval('.boardListInfo tbody td:nth-child(4)', el => el.textContent!)).includes('제출완료');
+
+        assignments.push({ title, finished, deadline: new Date(deadline) });
+      }
+
+      return assignments;
+    } catch (e) {
+      error(`${name}: 과제 크롤링 중 오류가 발생했습니다!`);
+
+      throw e;
+    } finally {
+      await page?.close();
+    }
+  }
+
+  /**
+   * 주어진 과목의 자료실 크롤링
+   */
+  private async crawlResources({ id, name }: Course): Promise<Resource[]> {
+    let page: puppeteer.Page | null = null;
+    try {
+      log('start resources!');
+      page = await this.makeNewPage(`https://eclass.dongguk.edu/Course.do?cmd=viewStudyHome&boardInfoDTO.boardInfoGubun=study_home&courseDTO.courseId=${id}`);
+      // 자료실 게시판 페이지 url 크롤링 (이클래스 url 생성 방식이 조금 이상)
+      const tempPath = (await page.$eval('.menuSub.mp1 li:nth-child(3) a', e => e.getAttribute('href')))!;
+      await page.goto(`https://eclass.dongguk.edu${tempPath}`);
+      const basePath = page.url();
+
+      const resources: Resource[] = [];
+      for (let curPage: number = 1; ; curPage++) {
+        const curUrl = `${basePath}&curPage=${curPage}`;
+        log(`${name}(resources): curPage = ${curPage}`);
+        await page.goto(curUrl, { waitUntil: 'domcontentloaded' });
+
+        const resourceElements = await page.$$('table.boardListBasic tbody>tr');
+        const empty = (await resourceElements[0].evaluate(e => e.textContent))?.includes('없습니다');
+        if (empty) break;
+
+        for (const referenceEl of resourceElements) {
+          const no = await referenceEl.$eval('td:nth-child(1)', e => e.textContent!.trim());
+          const title = await referenceEl.$eval('td:nth-child(2)', e => e.textContent!.trim());
+          const author = await referenceEl.$eval('td:nth-child(4)', e => e.textContent!.trim());
+          const created = await referenceEl.$eval('td:nth-child(5)', e => e.textContent!.trim());
+
+          resources.push({ no, title, author, created: new Date(created) });
+        }
+      }
+
+      return resources;
+    } catch (e) {
+      error(`${name}: 자료실 크롤링 중 오류가 발생했습니다!`);
+
+      throw e;
+    } finally {
+      await page?.close();
+    }
+  }
+
+  /**
+   * 이클래스 크롤러 실행
+   */
+  public async run(credentials: UserCredential) {
+    this.loggedIn = await this.login(credentials);
+    if (!this.loggedIn) throw Error('로그인 실패!');
+
+    const courses = await this.crawlCourses();
+    log('crawled courses: ', courses);
+    const crawledData: CrawledData[] = await Promise.all(
+      courses.map(async course => ({
+        course: course.name,
+        notices: await this.crawlNotices(course),
+        assignments: await this.crawlAssignments(course),
+        resources: await this.crawlResources(course),
+      }))
+    );
+
+    return crawledData;
+  }
+
+  public async close() {
+    await this.browser.close();
+  }
+}
